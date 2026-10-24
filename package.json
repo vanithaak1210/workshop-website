@@ -1,0 +1,27 @@
+{
+  "name": "rj-body-building-workshop",
+  "version": "1.0.0",
+  "description": "Full-stack Workshop Management System for RJ BODY BUILDING — Lorry Body Building & Modification Workshop",
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix client install",
+    "seed": "npm --prefix server run seed",
+    "build:client": "npm --prefix client run build",
+    "build:server": "npm --prefix server run build",
+    "build": "npm run build:client && npm run build:server",
+    "start": "npm --prefix server run start",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev"
+  },
+  "keywords": [
+    "lorry-body-building",
+    "workshop-management",
+    "tamil-nadu",
+    "madurai",
+    "react",
+    "typescript",
+    "prisma",
+    "express"
+  ],
+  "author": "RJ BODY BUILDING",
+  "license": "ISC"
+}

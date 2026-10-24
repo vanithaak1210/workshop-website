@@ -1,0 +1,221 @@
+// Prisma Schema for RJ BODY BUILDING - Lorry Body Building & Modification Workshop
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 1. Users and Authentication (Admin, Worker, Customer)
+model User {
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  phone         String
+  passwordHash  String
+  role          String    @default("CUSTOMER") // ADMIN, WORKER, CUSTOMER
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relationships
+  workerProfile WorkerProfile?
+  enquiries     Enquiry[]
+  quotations    Quotation[]
+  jobs          Job[]
+  assignedTasks JobTask[]            @relation("WorkerTasks")
+  stageUpdates  JobStageHistory[]    @relation("StageUpdater")
+}
+
+// 2. Worker Profile and Departments
+model WorkerProfile {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department String   // Body Work, Painting, Artist, Electrical, Lining, Mechanic, Glass Fixing, Sticker Fixing, Maintenance and Purchasing, Security / Watchman
+  skills     String?  // comma-separated or description
+  status     String   @default("ACTIVE") // ACTIVE, INACTIVE
+  joinDate   DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// 3. Workshop Identity and Editable Settings
+model WorkshopSetting {
+  id             String   @id @default("default-setting")
+  workshopName   String   @default("RJ BODY BUILDING")
+  tagline        String   @default("Lorry Body Building & Modification Workshop")
+  location       String   @default("Vasthanagar, near Agrini / Ravithurayan Temple, Madurai, Tamil Nadu, India")
+  experienceYears Int     @default(35)
+  establishedYear Int     @default(1991)
+  phonePlaceholder String @default("+91 63793 02952")
+  whatsappPlaceholder String @default("+91 63793 02952")
+  businessHours  String   @default("Monday - Saturday: 8:30 AM - 7:30 PM (Sunday Closed)")
+  aboutSummary   String   @default("With 35 years of dedicated master craftsmanship from 1991 to 2026, RJ BODY BUILDING delivers heavy-duty lorry cabin fabrication, tipper builds, accident restoration, and custom commercial vehicle bodybuilding.")
+  updatedAt      DateTime @updatedAt
+}
+
+// 4. Vehicle Categories
+model VehicleCategory {
+  id          String         @id @default(uuid())
+  name        String         @unique // Small, Medium, Heavy, Axle and Tyre
+  description String
+  axleType    String?        // Single axle, Double axle, Multi-axle
+  tyreCount   Int?           // 6, 10, 12, 16, 18, 22
+  createdAt   DateTime       @default(now())
+  models      VehicleModel[]
+}
+
+// 5. Vehicle Models
+model VehicleModel {
+  id                  String          @id @default(uuid())
+  categoryId          String
+  category            VehicleCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  brand               String          // Tata, Mahindra, Eicher, Ashok Leyland, etc.
+  modelName           String          // Tata Ace, Tata Dost, Ashok Leyland Boss, E-Comet, etc.
+  supportedBodyTypes  String          // e.g. "Goods Carrier, Tipper, Cattle, Grocery, Flatbed"
+  createdAt           DateTime        @default(now())
+}
+
+// 6. Workshop Services
+model Service {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  category    String   // Fabrication, Repair, Finishing, Specialized, Mechanical
+  description String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+// 7. Customer Enquiries & Service Bookings
+model Enquiry {
+  id                String     @id @default(uuid())
+  enquiryNumber     String     @unique // e.g. BK-2026-0001 or ENQ-2026-0001
+  customerId        String?
+  customer          User?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName      String
+  customerPhone     String
+  vehicleCategory   String
+  vehicleMakeModel  String
+  vehiclePurpose    String
+  enquiryType       String     // SERVICE_BOOKING, GENERAL_ENQUIRY, New Body Building, Modification, Accident Repair / Rework
+  selectedService   String?
+  preferredDate     DateTime?
+  preferredTime     String?
+  serviceLocation   String?
+  requestedServices String     // JSON string of selected services
+  notes             String?
+  photoUrl          String?
+  status            String     @default("NEW") // NEW, IN_REVIEW, QUOTED, CONVERTED, REJECTED
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  quotations        Quotation[]
+  jobs              Job[]
+}
+
+// 8. Quotations
+model Quotation {
+  id                      String          @id @default(uuid())
+  quoteNumber             String          @unique // e.g. QUO-2026-0001
+  enquiryId               String?
+  enquiry                 Enquiry?        @relation(fields: [enquiryId], references: [id], onDelete: SetNull)
+  customerId              String
+  customer                User            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  subtotal                Float           @default(0.0)
+  discount                Float           @default(0.0)
+  taxOrCharges            Float           @default(0.0)
+  totalAmount             Float           @default(0.0)
+  notes                   String?
+  validityDate            DateTime?
+  estimatedCompletionDate DateTime?
+  status                  String          @default("DRAFT") // DRAFT, SENT, APPROVED, REJECTED, EXPIRED
+  approvedAt              DateTime?
+  rejectedAt              DateTime?
+  rejectionReason         String?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  items                   QuotationItem[]
+  job                     Job?
+}
+
+// 9. Quotation Line Items
+model QuotationItem {
+  id          String    @id @default(uuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float
+  unit        String    // Nos, Kg, Meters, Hours, Lot
+  unitRate    Float
+  amount      Float
+}
+
+// 10. Workshop Jobs (Activated from Approved Quotation)
+model Job {
+  id                   String            @id @default(uuid())
+  jobNumber            String            @unique // e.g. JOB-2026-0001
+  quotationId          String            @unique
+  quotation            Quotation         @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  enquiryId            String?
+  enquiry              Enquiry?          @relation(fields: [enquiryId], references: [id], onDelete: SetNull)
+  customerId           String
+  customer             User              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicleDetails       String            // Vehicle make, model, registration/chassis if available
+  currentStage         String            @default("ENQUIRY_RECEIVED") // ENQUIRY_RECEIVED, QUOTATION_APPROVED, BODY_BUILDING_REPAIR, PAINTING_FINISHING, QUALITY_CHECK, BILLING_DELIVERY
+  expectedDeliveryDate DateTime?
+  actualDeliveryDate   DateTime?
+  status               String            @default("IN_PROGRESS") // IN_PROGRESS, ON_HOLD, COMPLETED, DELIVERED
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  stageHistory         JobStageHistory[]
+  tasks                JobTask[]
+}
+
+// 11. Job Stage History and Timeline Audit
+model JobStageHistory {
+  id          String   @id @default(uuid())
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  stage       String   // ENQUIRY_RECEIVED, QUOTATION_APPROVED, BODY_BUILDING_REPAIR, PAINTING_FINISHING, QUALITY_CHECK, BILLING_DELIVERY
+  status      String   // COMPLETED, CURRENT, SKIPPED
+  notes       String?
+  skipped     Boolean  @default(false)
+  skipReason  String?
+  updatedById String
+  updater     User     @relation("StageUpdater", fields: [updatedById], references: [id], onDelete: Restrict)
+  createdAt   DateTime @default(now())
+}
+
+// 12. Worker Tasks and Assignments
+model JobTask {
+  id               String    @id @default(uuid())
+  jobId            String
+  job              Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?
+  department       String
+  assignedWorkerId String?
+  assignedWorker   User?     @relation("WorkerTasks", fields: [assignedWorkerId], references: [id], onDelete: SetNull)
+  status           String    @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  notes            String?
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+// 13. Contact Messages
+model ContactMessage {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String
+  subject   String?
+  message   String
+  status    String   @default("NEW") // NEW, READ, RESPONDED
+  createdAt DateTime @default(now())
+}
